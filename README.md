@@ -15,6 +15,4 @@ This project is designed to demonstrate an end-to-end workflow for processing CS
 6. **Data Analysis with Athena**: Executed SQL queries using AWS Athena.
 7. **Visualization with QuickSight**: Built interactive dashboards to visualize the data.
 
-## Getting Started
-Follow the instructions in the [Setup Guide](./SETUP.md) to deploy and test the pipeline.
 
