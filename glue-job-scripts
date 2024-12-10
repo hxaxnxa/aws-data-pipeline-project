@@ -1,0 +1,33 @@
+import sys
+from awsglue.job import Job
+from awsglue.context import GlueContext
+from pyspark.context import SparkContext
+from awsglue.dynamicframe import DynamicFrame
+
+sc = SparkContext()
+glueContext = GlueContext(sc)
+job = Job(glueContext)
+job.init("ProcessTransactionData", {})
+
+datasource = glueContext.create_dynamic_frame.from_catalog(
+    database="DATABASE_NAME",
+    table_name="TABLE_IN_DATABASE_BY_GLUECRAWL"
+)
+
+#Filtered with "date" column 
+transformed_data = datasource.filter(lambda x: x["date"] is not None)  
+
+if transformed_data.count() > 0:
+    # Write the transformed data to S3 in Parquet format
+    output_path = "s3://processed-bucket-2/processed_data/"
+    glueContext.write_dynamic_frame.from_options(
+        frame=transformed_data,
+        connection_type="s3",
+        connection_options={"path": output_path},
+        format="parquet"
+    )
+    print("Data written to S3 successfully.")
+else:
+    print("No data to write to S3.")
+
+job.commit()
