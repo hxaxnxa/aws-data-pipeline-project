@@ -1,0 +1,92 @@
+import { S3 } from '@aws-sdk/client-s3';
+
+const s3 = new S3();
+
+export const handler = async (event) => {
+    // Enable CORS
+    const headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type,x-filename",
+        "Access-Control-Allow-Methods": "OPTIONS,POST"
+    };
+
+    // Handle preflight requests
+    if (event.httpMethod === "OPTIONS") {
+        return {
+            statusCode: 200,
+            headers,
+            body: ""
+        };
+    }
+
+    try {
+        // Add input validation
+        if (!event.body) {
+            throw new Error('Request body is missing');
+        }
+
+        const bucketName = "finance-analysis";
+        const fileName = event.headers["x-filename"];
+        
+        if (!fileName) {
+            throw new Error('Filename header is missing');
+        }
+
+        // Parse the JSON body with error handling
+        let body;
+        try {
+            body = JSON.parse(event.body);
+        } catch (e) {
+            throw new Error('Invalid JSON in request body');
+        }
+
+        if (!body.file) {
+            throw new Error('File content is missing');
+        }
+
+        // Decode base64 with error handling
+        let fileContent;
+        try {
+            fileContent = Buffer.from(body.file, 'base64');
+        } catch (e) {
+            throw new Error('Invalid base64 encoding');
+        }
+
+        // Set a reasonable timeout for S3 upload
+        const params = {
+            Bucket: bucketName,
+            Key: fileName,
+            Body: fileContent,
+            ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        };
+
+        // Upload to S3 with promise timeout
+        const uploadPromise = s3.putObject(params);
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Upload timed out')), 10000); // 10 second timeout
+        });
+
+        await Promise.race([uploadPromise, timeoutPromise]);
+
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+                message: "File uploaded successfully!",
+                fileName: fileName
+            })
+        };
+
+    } catch (error) {
+        console.error("Error:", error);
+        
+        return {
+            statusCode: error.statusCode || 500,
+            headers,
+            body: JSON.stringify({
+                error: "File upload failed",
+                details: error.message
+            })
+        };
+    }
+};
