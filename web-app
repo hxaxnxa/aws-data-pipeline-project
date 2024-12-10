@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Excel File</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .file-input-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            outline: none;
+            font-size: 16px;
+        }
+        input[type="file"]:focus {
+            border-color: #007bff;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+            font-size: 16px;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+        .loading {
+            display: inline-block;
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Your Excel File</h1>
+        <div class="file-input-container">
+            <input type="file" id="fileInput" accept=".xlsx" />
+            <button onclick="uploadFile()">Upload</button>
+        </div>
+        <div id="status" class="status"></div>
+        <div id="loading" class="loading" style="display: none;">Uploading...</div>
+    </div>
+
+    <script>
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const statusDiv = document.getElementById('status');
+            const loadingDiv = document.getElementById('loading');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showStatus('Please select a file to upload.', 'error');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                showStatus('File size exceeds 5MB limit. Please select a smaller file.', 'error');
+                return;
+            }
+
+            loadingDiv.style.display = 'block';
+            showStatus('Uploading file...', 'normal');
+
+            try {
+                const base64File = await readFileAsBase64(file);
+                const apiUrl = 'API_INVOKE_URL_HERE';
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-filename': file.name
+                    },
+                    body: JSON.stringify({ file: base64File }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                loadingDiv.style.display = 'none';
+
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                showStatus('File uploaded successfully!', 'success');
+                console.log('Upload result:', result);
+
+            } catch (error) {
+                console.error('Error:', error);
+                if (error.name === 'AbortError') {
+                    showStatus('Upload timed out. Please try again.', 'error');
+                } else {
+                    showStatus(`Error uploading file: ${error.message}`, 'error');
+                }
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        function readFileAsBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const binary = new Uint8Array(reader.result).reduce((data, byte) => data + String.fromCharCode(byte), '');
+                    resolve(btoa(binary));
+                };
+                reader.onerror = (error) => {
+                    reject(error);
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status ' + type;
+        }
+    </script>
+</body>
+</html>
